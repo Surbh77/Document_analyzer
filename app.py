@@ -71,7 +71,7 @@ async def quey_llm():
                                                    )
     
     ice_cream_assistant_template =f"""
-    You are an auditor and you audit the below document. Analyse the WO point wise and mention these points before analysing any WO.
+    You are an auditor and you audit the below pasted WO content. First fetch the below points form the WO.
     1.	WO Number 
     2.	Aircraft Number
     3.	Sequence Number
@@ -79,6 +79,8 @@ async def quey_llm():
     5.	Type of WO
     6.	Planning Date 
 
+    Secondly go through the WO and give a step-by-step Wo analysis.
+    Always Give answer in mardown format.
     I am pasting the WO below:\n Work Order(WO): {texts}""" +"""\n
             Chat History: {chat_history}
             Question: {question}
