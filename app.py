@@ -1,35 +1,46 @@
-import os
-from typing import List
-
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.memory.buffer import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+import chainlit as cl
+from langchain_openai import ChatOpenAI
+from langchain.chains import LLMChain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema import StrOutputParser
-from langchain.schema.runnable import Runnable
-from langchain.chains import (
-    ConversationalRetrievalChain,
-)
+from langchain.schema.runnable import RunnableConfig
 from langchain.chat_models import ChatOpenAI
-
-from langchain.docstore.document import Document
-from langchain.memory import ChatMessageHistory, ConversationBufferMemory
-from chainlit.input_widget import TextInput
+from langchain.memory import ConversationBufferMemory
 import chainlit as cl
+import os
 
 api_key=os.getenv('OPENAI_API_KEY')
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=500)
+
+
+conversation_memory = ConversationBufferMemory(memory_key="chat_history",
+                                               max_len=1000,
+                                               return_messages=True,
+                                                   )
+
+
+ice_cream_assistant_template = """
+You are an assistant"
+Chat History: {chat_history}
+Question: {question}
+Answer:"""
+
+ice_cream_assistant_prompt_template = PromptTemplate(
+    input_variables=["chat_history", "question"],
+    template=ice_cream_assistant_template
+)
 
 
 @cl.on_chat_start
-async def on_chat_start():
-    
+async def quey_llm():
     files = None
 
-    # Wait for the user to upload a file
+
+
     while files == None:
         files = await cl.AskFileMessage(
             content="Please upload a PDF file to begin!",
@@ -38,9 +49,9 @@ async def on_chat_start():
             timeout=180,
         ).send()
 
-    # print("......+++++++++",files)
+
     file = files[0]
-    # print(f"Chainlit PDF{file.path}")
+
     msg = cl.Message(content=f"Processing `{file.name}`...")
     await msg.send()
 
@@ -48,41 +59,57 @@ async def on_chat_start():
     loader = PyPDFLoader(file.path)
 
     pages = loader.load_and_split()
-    # print("Pages=====>>>>> ",pages)
+
     texts = " ".join([page.page_content for page in pages])
-    metadatas = [{"source": f"{i}-pl"} for i in range(len(texts))]
-    doc_msg = ("human",f"Document: {texts}")
-    model = ChatOpenAI(streaming=True,openai_api_key=api_key)
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are an aircraft maintainance audit expert. An you audit the given document",
-            ),
-            doc_msg,
-            ("human","{question}"),
-        ]
-    )
     
-    # print("Prompt====>>>>",prompt)
-    runnable = prompt | model | StrOutputParser()
-    cl.user_session.set("runnable", runnable)
+    llm = ChatOpenAI(model='gpt-3.5-turbo',
+                 temperature=1,openai_api_key=api_key,streaming=True)
+    
+    conversation_memory = ConversationBufferMemory(memory_key="chat_history",
+                                                   max_len=1000,
+                                                   return_messages=True,
+                                                   )
+    
+    ice_cream_assistant_template =f"""
+    You are an auditor and you audit the below document. Analyse the WO point wise and mention these points before analysing any WO.
+    1.	WO Number 
+    2.	Aircraft Number
+    3.	Sequence Number
+    4.	Work Package Number
+    5.	Type of WO
+    6.	Planning Date 
 
+    I am pasting the WO below:\n Work Order(WO): {texts}""" +"""\n
+            Chat History: {chat_history}
+            Question: {question}
+            Answer:"""
+            
+    print(ice_cream_assistant_template)
+    ice_cream_assistant_prompt_template = PromptTemplate(
+    input_variables=["chat_history", "question"],
+    template=ice_cream_assistant_template
+)
+    llm_chain = LLMChain(llm=llm, 
+                         prompt=ice_cream_assistant_prompt_template,
+                         memory=conversation_memory)
     msg.content = f"The PDF `{file.name}` is uploaded successfully."
-    await msg.update()
-
-from langchain.schema.runnable.config import RunnableConfig
-
+    await msg.send()
+    cl.user_session.set("llm_chain", llm_chain)
+    
 @cl.on_message
-async def on_message(message: cl.Message):
-    runnable = cl.user_session.get("runnable")  # type: Runnable
-
+async def query_llm(message: cl.Message):
+    
+    llm_chain = cl.user_session.get("llm_chain")
+   
     msg = cl.Message(content="")
     
-    async for chunk in runnable.astream(
-        {"question": message.content},
-        config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()]),
-    ):
-        await msg.stream_token(chunk)
 
-    await msg.send()
+    async for chunk in llm_chain.astream(
+        {"question": message.content},
+        config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()])
+    ):
+        print(chunk)
+        await msg.stream_token(chunk['text'])
+    
+
+    await msg.send()    
