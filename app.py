@@ -11,9 +11,26 @@ from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 import chainlit as cl
 import os
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 api_key=os.getenv('OPENAI_API_KEY')
-
+db_url=os.getenv('DB_URL')
+client = MongoClient(db_url, server_api=ServerApi('1'))
+try:
+    client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+    db = client["freelancing"]
+    collection = db["poc_1"]
+    documents = collection.find()
+    instruct = ""
+    for ind,document in enumerate(documents):
+        print(document["Instruction"])
+        instruct+=f"{ind+1} - {document["Instruction"]}\n"
+    print(instruct)
+except Exception as e:
+    print(e)
+    
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=500)
 
 
@@ -70,8 +87,8 @@ async def quey_llm():
                                                    return_messages=True,
                                                    )
     
-    ice_cream_assistant_template =f"""
-    You are an auditor and you audit the below pasted WO content. First fetch the below points form the WO.
+    ice_cream_assistant_template =f""""
+    You are an auditor and you audit the below document. Analyse the WO point wise and mention these points before analysing any WO.
     1.	WO Number 
     2.	Aircraft Number
     3.	Sequence Number
@@ -79,8 +96,8 @@ async def quey_llm():
     5.	Type of WO
     6.	Planning Date 
 
-    Secondly go through the WO and give a step-by-step Wo analysis.
-    Always Give answer in mardown format.
+    Also follow the instructions given below:
+    {instruct}
     I am pasting the WO below:\n Work Order(WO): {texts}""" +"""\n
             Chat History: {chat_history}
             Question: {question}
@@ -104,13 +121,17 @@ async def query_llm(message: cl.Message):
     llm_chain = cl.user_session.get("llm_chain")
    
     msg = cl.Message(content="")
+    if 'Instruction=>' in message.content:
+        doc = {"Instruction": message.content.split('>')[1]}
+        inserted_id = collection.insert_one(doc).inserted_id
+
     
 
     async for chunk in llm_chain.astream(
         {"question": message.content},
         config=RunnableConfig(callbacks=[cl.LangchainCallbackHandler()])
     ):
-        print(chunk)
+
         await msg.stream_token(chunk['text'])
     
 
