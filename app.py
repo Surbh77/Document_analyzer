@@ -16,20 +16,6 @@ from pymongo.server_api import ServerApi
 
 api_key=os.getenv('OPENAI_API_KEY')
 db_url=os.getenv('DB_URL')
-client = MongoClient(db_url, server_api=ServerApi('1'))
-try:
-    client.admin.command('ping')
-    print("Pinged your deployment. You successfully connected to MongoDB!")
-    db = client["freelancing"]
-    collection = db["poc_1"]
-    documents = collection.find()
-    instruct = ""
-    for ind,document in enumerate(documents):
-        print(document["Instruction"])
-        instruct+=f"{ind+1} - {document["Instruction"]}\n"
-    print(instruct)
-except Exception as e:
-    print(e)
     
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=500)
 
@@ -54,6 +40,20 @@ ice_cream_assistant_prompt_template = PromptTemplate(
 
 @cl.on_chat_start
 async def quey_llm():
+    client = MongoClient(uri, server_api=ServerApi('1'))
+    try:
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+        db = client["freelancing"]
+        collection = db["poc_1"]
+        documents = collection.find()
+        instruct = ""
+        for ind,document in enumerate(documents):
+            print(document["Instruction"])
+            instruct+=f"{ind+1} - {document["Instruction"]}\n"
+        print(instruct)
+    except Exception as e:
+        print(e)
     files = None
 
 
