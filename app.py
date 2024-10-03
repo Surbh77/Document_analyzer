@@ -18,7 +18,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("fastapi")
 api_key=os.getenv('OPENAI_API_KEY')
 db_url=os.getenv('DB_URL')
-    
+client = MongoClient(db_url, server_api=ServerApi('1'))
+try:
+    client.admin.command('ping')
+    print("Pinged your deployment. You successfully connected to MongoDB!")
+    db = client["freelancing"]
+    collection = db["poc_1"]
+    documents = collection.find()
+    instruct = ""
+    for ind,document in enumerate(documents):
+        logger.info(document["Instruction"])
+        print(document["Instruction"])
+        instruct+=f"{ind+1} - {document["Instruction"]}\n"
+        # instruct = " "
+    print(instruct)
+except Exception as e:
+    print(e)
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=2500, chunk_overlap=500)
 
 
@@ -53,8 +68,8 @@ async def quey_llm():
         for ind,document in enumerate(documents):
             logger.info(document["Instruction"])
             print(document["Instruction"])
-            # instruct+=f"{ind+1} - {document["Instruction"]}\n"
-            instruct = " "
+            instruct+=f"{ind+1} - {document["Instruction"]}\n"
+            # instruct = " "
         print(instruct)
     except Exception as e:
         print(e)
