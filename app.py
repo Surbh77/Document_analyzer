@@ -13,7 +13,9 @@ import chainlit as cl
 import os
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("fastapi")
 api_key=os.getenv('OPENAI_API_KEY')
 db_url=os.getenv('DB_URL')
     
@@ -49,6 +51,7 @@ async def quey_llm():
         documents = collection.find()
         instruct = ""
         for ind,document in enumerate(documents):
+            logger.info(document["Instruction"])
             print(document["Instruction"])
             instruct+=f"{ind+1} - {document["Instruction"]}\n"
         print(instruct)
