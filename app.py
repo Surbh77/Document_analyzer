@@ -29,7 +29,7 @@ try:
     for ind,document in enumerate(documents):
         logger.info(document["Instruction"])
         print(document["Instruction"])
-        instruct+=f"{ind+1} - {document["Instruction"]}\n"
+        instruct+=f"""{ind+1} - {document["Instruction"]}\n""" 
         # instruct = " "
     print(instruct)
 except Exception as e:
